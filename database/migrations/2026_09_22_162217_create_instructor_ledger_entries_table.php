@@ -13,7 +13,7 @@ return new class extends Migration
 
             $table->foreignId('instructor_id')
                 ->constrained('users')
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             /*
              * earning
@@ -38,7 +38,7 @@ return new class extends Migration
             $table->foreignId('earning_period_id')
                 ->nullable()
                 ->constrained()
-                ->nullOnDelete();
+                ->restrictOnDelete();
 
             /*
              * Generic business source for adjustments/corrections.
@@ -47,6 +47,7 @@ return new class extends Migration
             $table->unsignedBigInteger('reference_id')->nullable();
 
             $table->string('description')->nullable();
+            $table->dateTime('occurred_at');
 
             $table->timestamps();
 
@@ -61,7 +62,12 @@ return new class extends Migration
 
             $table->index(['instructor_id', 'type']);
             $table->index(['instructor_id', 'created_at']);
+            $table->index(['instructor_id', 'occurred_at']);
             $table->index(['reference_type', 'reference_id']);
+            $table->unique(
+                ['instructor_id', 'type', 'reference_type', 'reference_id'],
+                'ledger_adjustment_reference_unique'
+            );
         });
     }
 

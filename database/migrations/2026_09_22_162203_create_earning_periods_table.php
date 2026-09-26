@@ -13,11 +13,11 @@ return new class extends Migration
 
             $table->foreignId('subscription_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->foreignId('subscription_payment_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->date('period_start');
             $table->date('period_end');
@@ -29,7 +29,7 @@ return new class extends Migration
              * We are not using this column for money calculations directly
              * without converting to integer-safe arithmetic in application code.
              */
-            $table->decimal('platform_share_percentage', 5, 2);
+            $table->unsignedSmallInteger('instructor_share_basis_points')->nullable();
 
             /*
              * Portion of the subscription payment attributed to this earning period.
