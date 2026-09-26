@@ -7,6 +7,8 @@ namespace App\Services;
 use App\Contracts\PaymentProvider;
 use App\Enums\PayoutStatus;
 use App\Enums\ProviderTransactionStatus;
+use App\Exceptions\ProviderTimeoutException;
+use App\Jobs\ReconcilePayoutJob;
 use App\Repositories\PayoutRepository;
 use App\Repositories\ProviderTransactionRepository;
 use App\ValueObjects\ProviderResult;
@@ -50,13 +52,56 @@ class ProcessPayoutService
             return;
         }
 
-        $result = $this->provider->transfer(
-            $payout->idempotency_key,
-            $payout->instructor_id,
-            $payout->amount_minor,
-            $payout->currency,
-        );
+        try {
+            $result = $this->provider->transfer(
+                $payout->idempotency_key,
+                $payout->instructor_id,
+                $payout->amount_minor,
+                $payout->currency,
+            );
+            $this->persistConfirmedResult($payout->id, $result);
+        } catch (ProviderTimeoutException $exception) {
+            DB::transaction(function () use ($payout, $exception): void {
+                $locked = $this->payouts->lock($payout->id);
+                if ($locked->status !== PayoutStatus::Processing) {
+                    return;
+                }
+                $transaction = $this->transactions->lockForPayout($payout->id);
+                $transaction->update([
+                    'status' => ProviderTransactionStatus::Unknown,
+                    'response_payload' => ['message' => $exception->getMessage()],
+                ]);
+                $locked->update(['status' => PayoutStatus::PendingConfirmation]);
+            }, 3);
+            ReconcilePayoutJob::dispatch($payout->id)->delay(now()->addSeconds(5));
+        }
+    }
+
+    public function reconcile(int $payoutId): void
+    {
+        $payout = $this->payouts->find($payoutId);
+        if ($payout === null || ! in_array($payout->status, [PayoutStatus::Processing, PayoutStatus::PendingConfirmation], true)) {
+            return;
+        }
+
+        $result = $this->provider->status($payout->idempotency_key);
         $this->persistConfirmedResult($payout->id, $result);
+    }
+
+    public function dispatchReconciliationBatch(int $batchSize): int
+    {
+        $count = 0;
+        $afterId = 0;
+        do {
+            $ids = $this->payouts->reconciliationIds($afterId, $batchSize);
+            foreach ($ids as $id) {
+                $afterId = $id;
+                ReconcilePayoutJob::dispatch($id);
+                $count++;
+            }
+        } while (count($ids) === $batchSize);
+
+        return $count;
     }
 
     private function persistConfirmedResult(int $payoutId, ProviderResult $result): void
