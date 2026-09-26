@@ -13,7 +13,7 @@ return new class extends Migration
 
             $table->foreignId('payout_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             /*
              * Stable idempotency key used with the external provider.
@@ -29,6 +29,7 @@ return new class extends Migration
              * unknown
              */
             $table->string('status')->default('initiated');
+            $table->unsignedInteger('attempt_count')->default(0);
 
             /*
              * Useful for the mocked provider and debugging the challenge.
@@ -46,6 +47,8 @@ return new class extends Migration
                 ['payout_id', 'idempotency_key'],
                 'provider_transaction_idempotency_unique'
             );
+            $table->unique('payout_id');
+            $table->unique('idempotency_key');
 
             $table->index(['payout_id', 'status']);
             $table->index('provider_reference');

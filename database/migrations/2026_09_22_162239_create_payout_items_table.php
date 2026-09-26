@@ -13,7 +13,7 @@ return new class extends Migration
 
             $table->foreignId('payout_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->foreignId('ledger_entry_id')
                 ->constrained('instructor_ledger_entries')
@@ -23,7 +23,7 @@ return new class extends Migration
              * Snapshot of the amount included from this ledger entry.
              * Currently every ledger entry is reserved in full.
              */
-            $table->unsignedBigInteger('amount_minor');
+            $table->bigInteger('amount_minor');
 
             $table->timestamps();
 

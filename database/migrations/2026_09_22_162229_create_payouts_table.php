@@ -13,7 +13,7 @@ return new class extends Migration
 
             $table->foreignId('instructor_id')
                 ->constrained('users')
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->unsignedBigInteger('amount_minor');
 
@@ -34,6 +34,7 @@ return new class extends Migration
             $table->uuid('idempotency_key')->unique();
 
             $table->dateTime('paid_at')->nullable();
+            $table->dateTime('failed_at')->nullable();
 
             $table->timestamps();
 
