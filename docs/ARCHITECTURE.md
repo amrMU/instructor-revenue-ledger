@@ -2,6 +2,52 @@
 
 The authoritative business decisions remain in [`architecture_desion.md`](architecture_desion.md). This file describes how the implementation realizes them; it does not replace or amend them.
 
+## System at a glance
+
+The financial flow starts when a student buys a plan and ends when the provider confirms an instructor payout:
+
+```text
+Student
+  └── Subscription ─────────────── belongs to ───────────────> Plan
+        ├── Subscription Payment (full term paid upfront)
+        └── Earning Periods (1, 3, or 12 anchored periods)
+              └── Completed period
+                    └── Instructor Ledger Entries (earned money)
+                          └── Payout Items (exact reserved entries)
+                                └── Payout (fixed amount and state)
+                                      └── Provider Transaction
+                                            └── success / failure / reconciliation
+```
+
+The instructor side of the same relationship is:
+
+```text
+Instructor
+  ├── Ledger Entries ── source of total earned
+  └── Payouts
+        ├── Payout Items ── exact ledger entries included in the payout
+        └── Provider Transaction ── external operation and reconciliation record
+```
+
+`PayoutItem` is the reservation link between a payout and a ledger entry. Its unique `ledger_entry_id` prevents the same earning from entering two payouts.
+
+## Money flow
+
+1. The student pays the full subscription price upfront in one `SubscriptionPayment`.
+2. `GenerateEarningPeriodsService` distributes that payment across monthly periods anchored to the subscription start date.
+3. When a period ends, the upstream LMS supplies the applicable revenue-share percentage and instructor IDs.
+4. `CompleteEarningPeriodService` snapshots that percentage, calculates the platform and instructor amounts, and creates one earning ledger entry per instructor.
+5. The instructor balance is derived from the ledger: earned is the signed ledger total, paid is the value of items in paid payouts, and outstanding is earned minus paid.
+6. `CreatePayoutService` locks and reserves exact eligible ledger entries, then creates a payout with a fixed amount and stable idempotency key.
+7. `ProcessPayoutJob` asks `ProcessPayoutService` to submit that fixed payout through `PaymentProvider`.
+8. A confirmed success marks the payout paid. A confirmed failure marks it failed. A timeout moves it to `pending_confirmation` until reconciliation checks the original provider operation.
+
+This separates three different facts that must not be confused:
+
+- `SubscriptionPayment` records cash collected from the student.
+- `InstructorLedgerEntry` records money earned by an instructor.
+- A paid `Payout` records money confirmed as transferred to that instructor.
+
 ## Boundaries
 
 Entry points (commands, queued jobs, and the Filament page) call explicit services. Services own financial calculations, transactions, and state transitions. Repositories own persistence, locking, and bounded retrieval. Only `PaymentProvider` crosses the external provider boundary.
