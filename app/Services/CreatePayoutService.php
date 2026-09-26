@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\PayoutStatus;
+use App\Jobs\ProcessPayoutJob;
 use App\Models\Payout;
 use App\Repositories\InstructorLedgerRepository;
 use App\Repositories\PayoutRepository;
@@ -19,7 +20,7 @@ class CreatePayoutService
         private readonly InstructorLedgerRepository $ledger,
     ) {}
 
-    public function createForInstructor(int $instructorId): ?Payout
+    public function createForInstructor(int $instructorId, bool $dispatch = true): ?Payout
     {
         try {
             $payout = DB::transaction(function () use ($instructorId): ?Payout {
@@ -51,6 +52,10 @@ class CreatePayoutService
             }, 3);
         } catch (UniqueConstraintViolationException) {
             return null;
+        }
+
+        if ($payout !== null && $dispatch) {
+            ProcessPayoutJob::dispatch($payout->id)->afterCommit();
         }
 
         return $payout;
