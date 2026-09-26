@@ -13,7 +13,7 @@ return new class extends Migration
 
             $table->foreignId('student_id')
                 ->constrained('users')
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->foreignId('plan_id')
                 ->constrained()
@@ -21,6 +21,7 @@ return new class extends Migration
 
             $table->dateTime('starts_at');
             $table->dateTime('ends_at');
+            $table->dateTime('refunded_at')->nullable();
 
             $table->string('status')->default('active');
 

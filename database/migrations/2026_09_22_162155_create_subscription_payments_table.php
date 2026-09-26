@@ -13,15 +13,17 @@ return new class extends Migration
 
             $table->foreignId('subscription_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->unsignedBigInteger('amount_minor');
+            $table->unsignedBigInteger('refunded_amount_minor')->default(0);
 
             $table->char('currency', 3)->default('EGP');
 
             $table->string('status')->default('paid');
 
             $table->dateTime('paid_at')->nullable();
+            $table->dateTime('refunded_at')->nullable();
 
             $table->timestamps();
 
